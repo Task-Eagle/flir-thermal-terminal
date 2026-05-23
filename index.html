@@ -476,39 +476,73 @@
     let videoElement = null;
 
     async function startAndroidUsbCamera() {
-        try {
-            // Terminate active operations if clicked repeatedly
-            if (activeStream) closeStream();
+    try {
+        if (activeStream) closeStream();
 
-            // Request the hardware engine context from Android's external video loop handles
-            activeStream = await navigator.mediaDevices.getUserMedia({
-                video: {
-                    facingMode: "environment", // Instructs OS to read external target ports
-                    width: { ideal: 1280 },
-                    height: { ideal: 960 }
-                }
-            });
+        // 1. Force the app to request baseline media access permissions first.
+        // This unlocks the ability to read the actual names/labels of the hardware devices.
+        const temporaryStream = await navigator.mediaDevices.getUserMedia({ video: true });
+        temporaryStream.getTracks().forEach(track => track.stop()); // Instantly close it
 
-            // Set up invisible internal hardware tracking tag
-            videoElement = document.createElement('video');
-            videoElement.srcObject = activeStream;
-            videoElement.setAttribute('playsinline', true);
-            videoElement.play();
+        // 2. Query the phone's system bus for a full array of connected video inputs
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const videoDevices = devices.filter(device => device.kind === 'videoinput');
 
-            if (placeholder) placeholder.style.display = 'none';
-            feedCanvas.style.display = 'block';
-            if (sysStatusSpan) {
-                sysStatusSpan.innerText = "STREAM ONLINE";
-                sysStatusSpan.style.color = "var(--neon-cyan)";
-            }
+        console.log("🛰️ Detected Video Devices Array:", videoDevices);
 
-            renderFrameLoop();
+        // 3. Look for the FLIR camera or any external USB video device.
+        // Most external OTG cameras will have "USB", "External", or "FLIR" in their system label.
+        let targetDevice = videoDevices.find(device => 
+            device.label.toLowerCase().includes('flir') || 
+            device.label.toLowerCase().includes('usb') ||
+            device.label.toLowerCase().includes('video') ||
+            device.label.toLowerCase().includes('external')
+        );
 
-        } catch (err) {
-            console.error("Camera linkage failure:", err);
-            alert("No external device driver response detected. Ensure OTG connection profile configuration matches.");
+        // Fallback: If no label matches but an extra camera is plugged in, grab the last one in the array
+        if (!targetDevice && videoDevices.length > 1) {
+            targetDevice = videoDevices[videoDevices.length - 1]; 
         }
+
+        // 4. Configure our strict hardware constraints
+        const constraints = {
+            video: {
+                width: { ideal: 1280 },
+                height: { ideal: 960 }
+            }
+        };
+
+        if (targetDevice) {
+            console.log(`🎯 Targeting Specific Hardware ID: ${targetDevice.label}`);
+            // Force Android to bypass its internal lenses and use the exact USB hardware device ID
+            constraints.video.deviceId = { exact: targetDevice.deviceId };
+        } else {
+            console.warn("⚠️ No distinct external USB label found. Defaulting to system environment camera.");
+            constraints.video.facingMode = "environment";
+        }
+
+        // 5. Fire up the targeted stream
+        activeStream = await navigator.mediaDevices.getUserMedia(constraints);
+
+        videoElement = document.createElement('video');
+        videoElement.srcObject = activeStream;
+        videoElement.setAttribute('playsinline', true);
+        videoElement.play();
+
+        if (placeholder) placeholder.style.display = 'none';
+        feedCanvas.style.display = 'block';
+        if (sysStatusSpan) {
+            sysStatusSpan.innerText = "STREAM ONLINE";
+            sysStatusSpan.style.color = "var(--neon-cyan)";
+        }
+
+        renderFrameLoop();
+
+    } catch (err) {
+        console.error("Camera linkage failure:", err);
+        alert(`Hardware Link Error: ${err.message}`);
     }
+}
 
     function renderFrameLoop() {
         if (!activeStream || isPaused) return;
