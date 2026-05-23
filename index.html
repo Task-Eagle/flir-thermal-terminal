@@ -1,0 +1,585 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stellar Thermal Telemetry Terminal</title>
+    <style>
+        /* --- Cosmic Variables & Theme --- */
+        :root {
+            --primary: #6c5ce7;
+            --accent: #a29bfe;
+            --neon-cyan: #00ffcc;
+            --neon-red: #ff3366;
+            --neon-amber: #ffb300;
+            --bg-dark: #0f0c29;
+            --text-light: #ffffff;
+            --card-bg: rgba(15, 12, 41, 0.45);
+            --border-glow: rgba(108, 92, 231, 0.3);
+        }
+
+        /* --- Reset & Global Styling --- */
+        * {
+            box-sizing: border-box;
+            user-select: none;
+        }
+
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background: radial-gradient(circle at center, #1b1445 0%, var(--bg-dark) 70%, #050510 100%);
+            color: var(--text-light);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        /* --- Dynamic Starfield Background --- */
+        #space-background {
+            position: fixed;
+            inset: 0;
+            z-index: 0;
+            pointer-events: none;
+        }
+
+        /* --- Main Layout Frame --- */
+        .main-container {
+            position: relative;
+            z-index: 10;
+            width: 92%;
+            max-width: 1100px;
+            max-height: 95vh;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        /* --- Header Space --- */
+        header {
+            text-align: center;
+        }
+
+        h1 {
+            margin: 0;
+            font-size: 1.8rem;
+            font-weight: 300;
+            letter-spacing: 4px;
+            text-transform: uppercase;
+            text-shadow: 0 0 15px var(--accent);
+            color: #ffffff;
+        }
+        
+        h1 span {
+            color: var(--neon-cyan);
+            font-weight: 700;
+        }
+
+        /* --- Large Glassmorphism Terminal Card --- */
+        .terminal-card {
+            background: var(--card-bg);
+            border-radius: 24px;
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6), 
+                        0 0 40px rgba(108, 92, 231, 0.15),
+                        inset 0 0 15px rgba(255, 255, 255, 0.05);
+            padding: 30px;
+            display: flex;
+            flex-direction: column;
+            gap: 25px;
+        }
+
+        /* --- Video/Feed Core Container --- */
+        .display-monitor {
+            width: 100%;
+            height: 380px;
+            background: rgba(5, 5, 15, 0.6);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 14px;
+            position: relative;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+            box-shadow: inset 0 0 20px rgba(0,0,0,0.8);
+        }
+
+        /* Active Video Canvas Element styling */
+        #thermalFeedCanvas {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            display: none; 
+            border-radius: 14px;
+            transition: filter 0.1s linear;
+        }
+
+        /* Decorative Crosshairs to simulate sensor sight */
+        .reticle {
+            position: absolute;
+            width: 30px;
+            height: 30px;
+            border: 2px solid rgba(0, 255, 204, 0.3);
+            border-radius: 50%;
+            z-index: 5;
+        }
+        .reticle::before, .reticle::after {
+            content: '';
+            position: absolute;
+            background: rgba(0, 255, 204, 0.3);
+        }
+        .reticle::before { top: 50%; left: -10px; width: 50px; height: 1px; }
+        .reticle::after { left: 50%; top: -10px; width: 1px; height: 50px; }
+
+        .feed-placeholder {
+            text-align: center;
+            color: rgba(255, 255, 255, 0.4);
+            font-size: 0.9rem;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            animation: pulse 2.5s infinite ease-in-out;
+            z-index: 2;
+            position: absolute;
+        }
+
+        /* --- Control Interface Dashboard Grid --- */
+        .controls-dashboard {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 20px;
+        }
+
+        .control-group {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 12px;
+            padding: 15px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .group-title {
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 1.5px;
+            color: var(--accent);
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+
+        /* --- Action Tooltip Integration --- */
+        .tooltip-wrapper {
+            position: relative;
+            display: inline-block;
+        }
+
+        .tooltip-text {
+            visibility: hidden;
+            width: 140px;
+            background: #18153b;
+            color: #fff;
+            text-align: center;
+            border-radius: 6px;
+            padding: 6px 0;
+            position: absolute;
+            z-index: 100;
+            bottom: 125%;
+            left: 50%;
+            transform: translateX(-50%);
+            opacity: 0;
+            transition: opacity 0.2s, transform 0.2s;
+            font-size: 0.75rem;
+            letter-spacing: 1px;
+            border: 1px solid var(--primary);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.5);
+            pointer-events: none;
+        }
+
+        .tooltip-text::after {
+            content: "";
+            position: absolute;
+            top: 100%;
+            left: 50%;
+            margin-left: -5px;
+            border-width: 5px;
+            border-style: solid;
+            border-color: var(--primary) transparent transparent transparent;
+        }
+
+        .tooltip-wrapper:hover .tooltip-text {
+            visibility: visible;
+            opacity: 1;
+            transform: translateX(-50%) translateY(-2px);
+        }
+
+        /* --- UI Elements: Custom Space Buttons --- */
+        .btn-row {
+            display: flex;
+            gap: 10px;
+            width: 100%;
+        }
+
+        .btn {
+            flex: 1;
+            background: rgba(255, 255, 255, 0.07);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            color: var(--text-light);
+            padding: 12px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            border-radius: 8px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            transition: all 0.25s ease;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .btn:hover {
+            background: var(--primary);
+            border-color: var(--accent);
+            box-shadow: 0 0 15px var(--primary);
+            transform: translateY(-2px);
+        }
+
+        .btn-save { border-left: 3px solid var(--neon-cyan); }
+        .btn-stop { border-left: 3px solid var(--neon-red); }
+        .btn-pause { border-left: 3px solid var(--neon-amber); }
+
+        /* --- UI Elements: Custom Sliders --- */
+        .slider-container {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .slider-label {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.8rem;
+            color: rgba(255, 255, 255, 0.7);
+        }
+
+        .space-slider {
+            -webkit-appearance: none;
+            width: 100%;
+            height: 6px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 99px;
+            outline: none;
+        }
+
+        .space-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: var(--neon-cyan);
+            cursor: pointer;
+            box-shadow: 0 0 8px var(--neon-cyan);
+            transition: transform 0.1s;
+        }
+
+        .space-slider::-webkit-slider-thumb:hover { transform: scale(1.25); }
+
+        .toggle-container {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 4px 0;
+        }
+
+        .toggle-label { font-size: 0.85rem; color: rgba(255, 255, 255, 0.85); }
+        .switch { position: relative; display: inline-block; width: 46px; height: 24px; }
+        .switch input { opacity: 0; width: 0; height: 0; }
+
+        .slider-toggle {
+            position: absolute;
+            cursor: pointer;
+            inset: 0;
+            background-color: rgba(255, 255, 255, 0.15);
+            transition: .3s;
+            border-radius: 24px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .slider-toggle:before {
+            position: absolute;
+            content: "";
+            height: 16px;
+            width: 16px;
+            left: 3px;
+            bottom: 3px;
+            background-color: white;
+            transition: .3s;
+            border-radius: 50%;
+        }
+
+        input:checked + .slider-toggle {
+            background-color: var(--primary);
+            box-shadow: 0 0 10px rgba(108, 92, 231, 0.5);
+        }
+
+        input:checked + .slider-toggle:before {
+            transform: translateX(22px);
+            background-color: var(--neon-cyan);
+        }
+
+        .icon-btn-group { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .icon-desc { font-size: 0.7rem; display: block; margin-top: 2px; opacity: 0.6; }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 0.3; transform: scale(0.98); }
+            50% { opacity: 0.8; transform: scale(1.02); }
+        }
+    </style>
+</head>
+<body>
+
+    <canvas id="space-background"></canvas>
+
+    <div class="main-container">
+        <header>
+            <h1>Thermal Matrix Terminal // <span id="sysStatus">Payload Offline</span></h1>
+        </header>
+
+        <div class="terminal-card">
+            <div class="display-monitor">
+                <div class="reticle"></div>
+                <div class="feed-placeholder" id="placeholderText">
+                    🛰️ Waiting for Secondary Space-Sensor Payload Link...
+                </div>
+                <canvas id="thermalFeedCanvas"></canvas>
+            </div>
+
+            <div class="controls-dashboard">
+                <div class="control-group">
+                    <span class="group-title">Telemetry Commands</span>
+                    <div class="btn-row">
+                        <button class="btn btn-save" onclick="captureFrame()">💾 Snapshot</button>
+                        <button class="btn btn-stop" onclick="closeStream()">⏹️ Kill</button>
+                    </div>
+                    <button class="btn btn-pause" id="dynamicPauseBtn" onclick="togglePauseState()">
+                        ⏸️ Pause
+                    </button>
+                </div>
+
+                <div class="control-group">
+                    <span class="group-title">Optics Focus Engine</span>
+                    <div class="toggle-container">
+                        <span class="toggle-label">Focus Mode (Auto/Man)</span>
+                        <label class="switch">
+                            <input type="checkbox" id="focusModeToggle" checked>
+                            <span class="slider-toggle"></span>
+                        </label>
+                    </div>
+                    <div class="icon-btn-group">
+                        <button class="btn" title="Focus Close">🌸<span class="icon-desc">Close</span></button>
+                        <button class="btn" title="Focus Far">🏔️<span class="icon-desc">Far</span></button>
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <span class="group-title">Sensor Saturation Matrix</span>
+                    <div class="slider-container">
+                        <div class="slider-label">
+                            <span>Gain Array (Brightness)</span>
+                            <span id="gainVal">100%</span>
+                        </div>
+                        <input type="range" id="gainSlider" min="50" max="200" value="100" class="space-slider" oninput="updateImageFilters()">
+                    </div>
+                    <div class="slider-container">
+                        <div class="slider-label">
+                            <span>Thermal Delta (Contrast)</span>
+                            <span id="deltaVal">100%</span>
+                        </div>
+                        <input type="range" id="deltaSlider" min="50" max="300" value="100" class="space-slider" oninput="updateImageFilters()">
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <span class="group-title">System Bus Allocation</span>
+                    
+                    <div class="tooltip-wrapper" style="width: 100%;">
+                        <button class="btn" id="connectUsbBtn" onclick="startAndroidUsbCamera()" style="border-left: 3px solid var(--neon-cyan);">
+                            🔌 Connect FLIR Hardware
+                        </button>
+                        <span class="tooltip-text">Direct Android UVC USB Host Link</span>
+                    </div>
+
+                    <button class="btn" onclick="toggleFullscreen()" style="border-top: 1px dashed var(--neon-cyan);">
+                        🎵 Fullscreen Modality
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+<script>
+    // --- 1. Starfield Particle Engine ---
+    const canvas = document.getElementById('space-background');
+    const ctx = canvas.getContext('2d');
+    let width = canvas.width = window.innerWidth;
+    let height = canvas.height = window.innerHeight;
+    window.addEventListener('resize', () => {
+        width = canvas.width = window.innerWidth;
+        height = canvas.height = window.innerHeight;
+    });
+
+    const particleCount = 65;
+    const particles = [];
+    const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789//--";
+    for(let i=0; i < particleCount; i++) {
+        particles.push({
+            x: Math.random() * width, y: Math.random() * height,
+            size: Math.random() * 2 + 0.5, speed: Math.random() * 0.8 + 0.2,
+            opacity: Math.random() * 0.6 + 0.2, type: Math.random() > 0.15 ? 'star' : 'char',
+            char: alphabet[Math.floor(Math.random() * alphabet.length)]
+        });
+    }
+    function animateSpace() {
+        ctx.clearRect(0, 0, width, height);
+        particles.forEach(p => {
+            ctx.fillStyle = `rgba(162, 155, 254, ${p.opacity})`;
+            if(p.type === 'star') {
+                ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2); ctx.fill();
+            } else {
+                ctx.font = `${p.size * 5 + 7}px monospace`; ctx.fillText(p.char, p.x, p.y);
+            }
+            p.x -= p.speed * 0.5; p.y += p.speed;
+            if (p.y > height) { p.y = -20; p.x = Math.random() * width; }
+            if (p.x < -20) { p.x = width + 20; p.y = Math.random() * height; }
+        });
+        requestAnimationFrame(animateSpace);
+    }
+    animateSpace();
+
+    // --- 2. Mobile Native Camera System Core ---
+    const placeholder = document.getElementById('placeholderText');
+    const feedCanvas = document.getElementById('thermalFeedCanvas');
+    const sysStatusSpan = document.getElementById('sysStatus');
+    const feedCtx = feedCanvas.getContext('2d');
+    
+    let activeStream = null;
+    let isPaused = false;
+    let videoElement = null;
+
+    async function startAndroidUsbCamera() {
+        try {
+            // Terminate active operations if clicked repeatedly
+            if (activeStream) closeStream();
+
+            // Request the hardware engine context from Android's external video loop handles
+            activeStream = await navigator.mediaDevices.getUserMedia({
+                video: {
+                    facingMode: "environment", // Instructs OS to read external target ports
+                    width: { ideal: 1280 },
+                    height: { ideal: 960 }
+                }
+            });
+
+            // Set up invisible internal hardware tracking tag
+            videoElement = document.createElement('video');
+            videoElement.srcObject = activeStream;
+            videoElement.setAttribute('playsinline', true);
+            videoElement.play();
+
+            if (placeholder) placeholder.style.display = 'none';
+            feedCanvas.style.display = 'block';
+            if (sysStatusSpan) {
+                sysStatusSpan.innerText = "STREAM ONLINE";
+                sysStatusSpan.style.color = "var(--neon-cyan)";
+            }
+
+            renderFrameLoop();
+
+        } catch (err) {
+            console.error("Camera linkage failure:", err);
+            alert("No external device driver response detected. Ensure OTG connection profile configuration matches.");
+        }
+    }
+
+    function renderFrameLoop() {
+        if (!activeStream || isPaused) return;
+
+        if (videoElement && videoElement.videoWidth > 0) {
+            if (feedCanvas.width !== videoElement.videoWidth) {
+                feedCanvas.width = videoElement.videoWidth;
+                feedCanvas.height = videoElement.videoHeight;
+            }
+            feedCtx.clearRect(0, 0, feedCanvas.width, feedCanvas.height);
+            feedCtx.drawImage(videoElement, 0, 0);
+        }
+        requestAnimationFrame(renderFrameLoop);
+    }
+
+    function closeStream() {
+        if (activeStream) {
+            activeStream.getTracks().forEach(track => track.stop());
+            activeStream = null;
+        }
+        if (videoElement) {
+            videoElement.pause();
+            videoElement = null;
+        }
+        feedCanvas.style.display = 'none';
+        if (placeholder) {
+            placeholder.style.display = 'block';
+            placeholder.innerText = "🛰️ Waiting for Secondary Space-Sensor Payload Link...";
+        }
+        if (sysStatusSpan) {
+            sysStatusSpan.innerText = "PAYLOAD OFFLINE";
+            sysStatusSpan.style.color = "var(--neon-red)";
+        }
+    }
+
+    // --- 3. UI Presentation Filters ---
+    function updateImageFilters() {
+        const gainValue = document.getElementById('gainSlider')?.value || 100;
+        const deltaValue = document.getElementById('deltaSlider')?.value || 100;
+        feedCanvas.style.filter = `brightness(${gainValue}%) contrast(${deltaValue}%)`;
+    }
+
+    function togglePauseState() {
+        const btn = document.getElementById('dynamicPauseBtn');
+        isPaused = !isPaused;
+        if(isPaused) {
+            btn.innerHTML = "▶️ Play";
+            btn.style.borderLeftColor = "var(--neon-cyan)";
+        } else {
+            btn.innerHTML = "⏸️ Pause";
+            btn.style.borderLeftColor = "var(--neon-amber)";
+            renderFrameLoop();
+        }
+    }
+
+    function captureFrame() {
+        if (!activeStream) return;
+        const link = document.createElement('a');
+        link.download = `TELEMETRY_SNAP_${Date.now()}.png`;
+        link.href = feedCanvas.toDataURL('image/png');
+        link.click();
+    }
+
+    function toggleFullscreen() {
+        if (!document.fullscreenElement) {
+            document.documentElement.requestFullscreen().catch(err => {
+                alert(`Error: ${err.message}`);
+            });
+        } else {
+            document.exitFullscreen();
+        }
+    }
+</script>
+</body>
+</html>
