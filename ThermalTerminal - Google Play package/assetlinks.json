@@ -1,0 +1,8 @@
+[{
+      "relation": ["delegate_permission/common.handle_all_urls"],
+      "target": {
+        "namespace": "android_app",
+        "package_name": "io.github.task_eagle.twa",
+        "sha256_cert_fingerprints": ["FB:4D:F2:E1:01:71:9E:4A:EE:E9:B0:EF:AF:D5:94:96:56:E3:B1:D2:A8:0B:D3:EF:13:64:51:11:13:76:4A:87"]
+      }
+    }]
